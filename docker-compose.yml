@@ -1,0 +1,79 @@
+# Backend + Frontend
+#
+# Storage type: change STORAGE_BACKEND in the backend service:
+#   - "local"  = store files on container filesystem (default)
+#   - "minio"  = store files in MinIO (MinIO service runs automatically)
+# See README.docker.md for details.
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://datavisyn:datavisyn@db:5432/datavisyn
+      UPLOAD_DIR: /app/data/uploads
+      # --- Storage type: change to "minio" to use MinIO instead of local filesystem ---
+      STORAGE_BACKEND: minio
+      # MinIO settings (required by app config; used only when STORAGE_BACKEND=minio)
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: uploads
+      CORS_ORIGINS: http://localhost:3000,http://localhost:80,http://127.0.0.1:3000,http://127.0.0.1:80
+    volumes:
+      - backend_uploads:/app/data/uploads
+      - alembic_versions:/app/alembic/versions
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # URL the browser uses to call the API (host machine)
+        VITE_API_BASE_URL: http://localhost:8000
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: datavisyn
+      POSTGRES_PASSWORD: datavisyn
+      POSTGRES_DB: datavisyn
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U datavisyn -d datavisyn"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    command: server --console-address ":9001" /data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+volumes:
+  postgres_data:
+  backend_uploads:
+  alembic_versions:
+  minio_data:
