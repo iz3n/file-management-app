@@ -1,0 +1,13 @@
+env/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.sqlite
+.env
+data/uploads/*
+!data/uploads/.gitkeep
+.coverage
+htmlcov/
+alembic/versions/*
